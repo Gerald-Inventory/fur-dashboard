@@ -3,83 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retail Sales Tracker</title>
+    <title>Retail Performance Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.6.2/fuse.min.js"></script>
     <style>
-        :root { --primary: #2563eb; --success: #059669; --danger: #dc2626; --bg: #f1f5f9; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); margin: 0; padding: 10px; color: #1e293b; }
-        .container { max-width: 500px; margin: auto; }
+        :root { --primary: #1e40af; --success: #15803d; --danger: #b91c1c; --bg: #f8fafc; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 14px; }
         .card { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; }
         
-        /* Form Elements */
-        label { font-size: 0.75rem; font-weight: bold; color: #64748b; margin-left: 5px; }
-        select, input { 
-            width: 100%; padding: 10px; margin: 4px 0 12px 0; 
-            border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box;
-        }
-        
+        label { font-size: 11px; font-weight: bold; color: #64748b; }
+        select, input { width: 100%; padding: 10px; margin: 4px 0 10px 0; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
         .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        
-        /* Result Item Styling */
-        .result-card { border-left: 4px solid var(--primary); margin-bottom: 10px; padding: 10px; background: #fff; border-radius: 4px; font-size: 0.9rem; }
-        .row-main { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
-        .row-sub { font-size: 0.8rem; color: #64748b; margin-bottom: 8px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 5px; }
-        .data-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; text-align: center; }
-        .data-box { background: #f8fafc; padding: 5px; border-radius: 4px; }
-        .val { display: block; font-weight: 700; font-size: 0.95rem; }
+
+        /* Summary Styling */
+        .summary-header { background: #e2e8f0; padding: 8px; font-weight: bold; border-radius: 4px; margin-bottom: 8px; display: flex; justify-content: space-between; }
+        .data-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px; text-align: center; margin-bottom: 10px; }
+        .data-box { background: #fff; border: 1px solid #e2e8f0; padding: 6px 2px; border-radius: 4px; }
+        .val { display: block; font-weight: bold; font-size: 13px; }
         .diff-pos { color: var(--success); }
         .diff-neg { color: var(--danger); }
+
+        /* Detail View (Horizontal Table) */
+        .detail-container { overflow-x: auto; display: none; margin-top: 10px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 600px; }
+        th { background: #334155; color: white; padding: 8px; text-align: left; position: sticky; left: 0; }
+        td { padding: 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+
+        .btn-view { width: 100%; background: var(--primary); color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="card">
-        <label>SEARCH RANGE</label>
-        <input type="text" id="rangeSearch" placeholder="Type Range Name...">
-        
-        <label>LOCATION</label>
-        <select id="locFilter"><option value="">All Locations</option></select>
+<div class="card">
+    <label>SEARCH RANGE NAME</label>
+    <input type="text" id="rangeSearch" placeholder="Type range...">
+    
+    <label>LOCATION NAME</label>
+    <select id="locFilter"><option value="">All Locations</option></select>
 
-        <div class="filter-grid">
-            <div><label>MONTH</label><select id="monthFilter"><option value="">All</option></select></div>
-            <div><label>DEPT</label><select id="deptFilter"><option value="">All</option></select></div>
-        </div>
-        <div class="filter-grid">
-            <div><label>CLASS</label><select id="classFilter"><option value="">All</option></select></div>
-            <div><label>SUBCLASS</label><select id="subclassFilter"><option value="">All</option></select></div>
-        </div>
+    <div class="filter-grid">
+        <div><label>MONTH</label><select id="monthFilter"><option value="">All</option></select></div>
+        <div><label>DEPT</label><select id="deptFilter"><option value="">All</option></select></div>
     </div>
+    <div class="filter-grid">
+        <div><label>CLASS</label><select id="classFilter"><option value="">All</option></select></div>
+        <div><label>SUBCLASS</label><select id="subclassFilter"><option value="">All</option></select></div>
+    </div>
+    
+    <button class="btn-view" id="toggleBtn">View Item Detail</button>
+</div>
 
-    <div id="results">
-        <p style="text-align:center; color:#94a3b8;">Reading FURSale.csv...</p>
+<!-- Summary View -->
+<div id="summaryView"></div>
+
+<!-- Detail View (Horizontal) -->
+<div id="detailView" class="detail-container">
+    <div class="card">
+        <table id="detailTable">
+            <thead>
+                <tr>
+                    <th>Location</th><th>Item Code</th><th>Description</th><th>TY Sale</th><th>LY Sale</th><th>Diff</th><th>Gr%</th>
+                </tr>
+            </thead>
+            <tbody id="detailBody"></tbody>
+        </table>
     </div>
 </div>
 
 <script>
 let rawData = [];
+let isDetailMode = false;
 
 Papa.parse("FURSale.csv", {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
+    download: true, header: true, skipEmptyLines: true,
     complete: function(results) {
         rawData = results.data;
         initFilters();
-        updateDisplay();
+        updateUI();
     }
 });
 
 function initFilters() {
-    const map = {
-        'Location Name': 'locFilter',
-        'Month': 'monthFilter',
-        'Department Name': 'deptFilter',
-        'Class Name': 'classFilter',
-        'Subclass name': 'subclassFilter'
-    };
-
+    const map = { 'Location Name': 'locFilter', 'Month': 'monthFilter', 'Department Name': 'deptFilter', 'Class Name': 'classFilter', 'Subclass name': 'subclassFilter' };
     Object.keys(map).forEach(key => {
         const select = document.getElementById(map[key]);
         const vals = [...new Set(rawData.map(r => r[key]))].filter(Boolean).sort();
@@ -87,68 +92,92 @@ function initFilters() {
     });
 }
 
-function updateDisplay() {
-    const search = document.getElementById('rangeSearch').value.toLowerCase();
-    const loc = document.getElementById('locFilter').value;
-    const month = document.getElementById('monthFilter').value;
-    const dept = document.getElementById('deptFilter').value;
-    const cls = document.getElementById('classFilter').value;
-    const sub = document.getElementById('subclassFilter').value;
+function updateUI() {
+    const filters = {
+        search: document.getElementById('rangeSearch').value.toLowerCase(),
+        loc: document.getElementById('locFilter').value,
+        month: document.getElementById('monthFilter').value,
+        dept: document.getElementById('deptFilter').value,
+        cls: document.getElementById('classFilter').value,
+        sub: document.getElementById('subclassFilter').value
+    };
 
     let filtered = rawData.filter(r => {
-        return (!loc || r['Location Name'] == loc) &&
-               (!month || r['Month'] == month) &&
-               (!dept || r['Department Name'] == dept) &&
-               (!cls || r['Class Name'] == cls) &&
-               (!sub || r['Subclass name'] == sub);
+        return (!filters.loc || r['Location Name'] == filters.loc) &&
+               (!filters.month || r['Month'] == filters.month) &&
+               (!filters.dept || r['Department Name'] == filters.dept) &&
+               (!filters.cls || r['Class Name'] == filters.cls) &&
+               (!filters.sub || r['Subclass name'] == filters.sub);
     });
 
-    if (search) {
+    if (filters.search) {
         const fuse = new Fuse(filtered, { keys: ['Range Name'], threshold: 0.3 });
-        filtered = fuse.search(search).map(res => res.item);
+        filtered = fuse.search(filters.search).map(res => res.item);
     }
 
-    renderTable(filtered);
+    renderSummary(filtered);
+    renderDetails(filtered);
 }
 
-function renderTable(data) {
-    const container = document.getElementById('results');
-    if (data.length === 0) {
-        container.innerHTML = '<div class="card" style="text-align:center">No data matches these filters.</div>';
-        return;
-    }
+function renderSummary(data) {
+    const container = document.getElementById('summaryView');
+    // Group by Range Name
+    const groups = data.reduce((acc, r) => {
+        const name = r['Range Name'] || 'Unknown';
+        if (!acc[name]) acc[name] = { ty: 0, ly: 0 };
+        acc[name].ty += Math.round(parseFloat(r['1.TY Net Sales']) || 0);
+        acc[name].ly += Math.round(parseFloat(r['2.LY Net Sales']) || 0);
+        return acc;
+    }, {});
 
-    container.innerHTML = data.slice(0, 50).map(r => {
-        const ty = Math.round(parseFloat(r['1.TY Net Sales']) || 0);
-        const ly = Math.round(parseFloat(r['2.LY Net Sales']) || 0);
-        const diff = ty - ly;
+    container.innerHTML = Object.keys(groups).map(name => {
+        const g = groups[name];
+        const diff = g.ty - g.ly;
+        const grow = g.ly !== 0 ? Math.round((diff / g.ly) * 100) : 0;
         const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
 
         return `
-            <div class="result-card">
-                <div class="row-main">
-                    <span>${r['Range Name'] || 'N/A'}</span>
-                    <span style="font-size:0.7rem; color:#64748b;">${r['Location Name']}</span>
-                </div>
-                <div class="row-sub">
-                    ${r['Item Code'] || ''} | ${r['Item Description'] || ''}
-                </div>
-                <div class="data-grid">
-                    <div class="data-box"><label>TY</label><span class="val">${ty.toLocaleString()}</span></div>
-                    <div class="data-box"><label>LY</label><span class="val">${ly.toLocaleString()}</span></div>
+            <div class="card">
+                <div class="summary-header"><span>${name}</span></div>
+                <div class="data-row">
+                    <div class="data-box"><label>TY</label><span class="val">${g.ty.toLocaleString()}</span></div>
+                    <div class="data-box"><label>LY</label><span class="val">${g.ly.toLocaleString()}</span></div>
                     <div class="data-box"><label>DIFF</label><span class="val ${color}">${diff.toLocaleString()}</span></div>
+                    <div class="data-box"><label>GR%</label><span class="val ${color}">${grow}%</span></div>
                 </div>
             </div>
         `;
     }).join('');
 }
 
-// Attach listeners
+function renderDetails(data) {
+    const body = document.getElementById('detailBody');
+    body.innerHTML = data.slice(0, 100).map(r => {
+        const ty = Math.round(parseFloat(r['1.TY Net Sales']) || 0);
+        const ly = Math.round(parseFloat(r['2.LY Net Sales']) || 0);
+        const diff = ty - ly;
+        const grow = ly !== 0 ? Math.round((diff / ly) * 100) : 0;
+        const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
+        return `
+            <tr>
+                <td>${r['Location Name']}</td><td>${r['Item Code']}</td><td>${r['Item Description']}</td>
+                <td>${ty.toLocaleString()}</td><td>${ly.toLocaleString()}</td>
+                <td class="${color}">${diff.toLocaleString()}</td><td class="${color}">${grow}%</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+document.getElementById('toggleBtn').addEventListener('click', function() {
+    isDetailMode = !isDetailMode;
+    document.getElementById('summaryView').style.display = isDetailMode ? 'none' : 'block';
+    document.getElementById('detailView').style.display = isDetailMode ? 'block' : 'none';
+    this.innerText = isDetailMode ? "Back to Summary" : "View Item Detail";
+});
+
 document.querySelectorAll('input, select').forEach(el => {
-    el.addEventListener('change', updateDisplay);
-    el.addEventListener('input', updateDisplay);
+    el.addEventListener('input', updateUI);
 });
 </script>
-
 </body>
 </html>
