@@ -13,25 +13,30 @@
         label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px; }
         select, input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        
+        /* Summary Styling */
         .summary-card { border-left: 5px solid var(--primary); padding: 10px; margin-bottom: 10px; background: white; border-radius: 4px; }
         .summary-title { font-weight: bold; margin-bottom: 8px; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; }
-        .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; text-align: center; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px; text-align: center; }
         .stat-box { background: #f8fafc; padding: 5px; border-radius: 4px; }
-        .stat-val { display: block; font-weight: bold; font-size: 14px; }
+        .stat-val { display: block; font-weight: bold; font-size: 12px; }
         .diff-pos { color: var(--success); } .diff-neg { color: var(--danger); }
+        
+        /* Detail Table Styling */
         .detail-view { display: none; overflow-x: auto; background: white; border-radius: 8px; }
-        table { width: 100%; border-collapse: collapse; min-width: 700px; font-size: 11px; }
+        table { width: 100%; border-collapse: collapse; min-width: 850px; font-size: 11px; }
         th { background: #334155; color: white; padding: 10px; text-align: left; }
         td { padding: 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
         tfoot { background: #f1f5f9; font-weight: bold; }
-        .btn { width: 100%; background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        
+        .btn { width: 100%; background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 14px; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <label>Search Range</label>
-    <input type="text" id="rangeSearch" placeholder="Type range name...">
+    <input type="text" id="rangeSearch" placeholder="Search Range Name...">
     
     <label>Location</label>
     <select id="locFilter"><option value="">All Locations</option></select>
@@ -56,7 +61,8 @@
                 <th>Location</th><th>Item Code</th><th>Description</th>
                 <th style="text-align:right">TY Sales</th>
                 <th style="text-align:right">LY Sales</th>
-                <th style="text-align:right">Diff</th>
+                <th style="text-align:right">Diff Value</th>
+                <th style="text-align:center">Diff %</th>
             </tr>
         </thead>
         <tbody id="detailBody"></tbody>
@@ -70,11 +76,17 @@ let colTY = "1.TY Net Sales";
 let colLY = "2.LY Net Sales";
 let isDetail = false;
 
-// Function to safely extract numbers even if they have currency symbols or commas
 const toNum = (v) => {
     if (!v) return 0;
     const n = parseFloat(String(v).replace(/[^0-9.-]+/g, ""));
     return isNaN(n) ? 0 : Math.round(n);
+};
+
+// Calculate Growth % safely
+const getPerc = (ty, ly) => {
+    if (ly === 0) return ty > 0 ? "100%" : "0%";
+    const p = ((ty - ly) / ly) * 100;
+    return Math.round(p) + "%";
 };
 
 Papa.parse("FURSale.csv", {
@@ -88,33 +100,29 @@ Papa.parse("FURSale.csv", {
     }
 });
 
-// AUTO-DETECTION: If the hardcoded name doesn't match, find the closest one
 function detectColumns(fields) {
-    console.log("Detecting columns in:", fields);
     const tyMatch = fields.find(f => f.includes("1.TY") || (f.includes("TY") && f.includes("Sales")));
     const lyMatch = fields.find(f => f.includes("2.LY") || (f.includes("LY") && f.includes("Sales")));
-    
     if (tyMatch) colTY = tyMatch;
     if (lyMatch) colLY = lyMatch;
-    
-    console.log("Selected TY Column:", colTY);
-    console.log("Selected LY Column:", colLY);
 }
 
 function updateDashboard() {
     const search = document.getElementById('rangeSearch').value.toLowerCase();
-    const fLoc = document.getElementById('locFilter').value;
-    const fMonth = document.getElementById('monthFilter').value;
-    const fDept = document.getElementById('deptFilter').value;
-    const fClass = document.getElementById('classFilter').value;
-    const fSub = document.getElementById('subclassFilter').value;
+    const filters = {
+        'Location Name': document.getElementById('locFilter').value,
+        'Month': document.getElementById('monthFilter').value,
+        'Department Name': document.getElementById('deptFilter').value,
+        'Class Name': document.getElementById('classFilter').value,
+        'Subclass name': document.getElementById('subclassFilter').value
+    };
 
     let filtered = fullData.filter(r => {
-        return (!fLoc || r['Location Name'] === fLoc) &&
-               (!fMonth || r['Month'] === fMonth) &&
-               (!fDept || r['Department Name'] === fDept) &&
-               (!fClass || r['Class Name'] === fClass) &&
-               (!fSub || r['Subclass name'] === fSub);
+        return (!filters['Location Name'] || r['Location Name'] === filters['Location Name']) &&
+               (!filters['Month'] || r['Month'] === filters['Month']) &&
+               (!filters['Department Name'] || r['Department Name'] === filters['Department Name']) &&
+               (!filters['Class Name'] || r['Class Name'] === filters['Class Name']) &&
+               (!filters['Subclass name'] || r['Subclass name'] === filters['Subclass name']);
     });
 
     if (search) {
@@ -122,21 +130,21 @@ function updateDashboard() {
         filtered = fuse.search(search).map(res => res.item);
     }
 
-    updateDropdowns(filtered, { fLoc, fMonth, fDept, fClass, fSub });
+    updateDropdowns(filtered);
     renderSummary(filtered);
     renderDetails(filtered);
 }
 
-function updateDropdowns(data, active) {
+function updateDropdowns(data) {
     const map = { 'Location Name': 'locFilter', 'Month': 'monthFilter', 'Department Name': 'deptFilter', 'Class Name': 'classFilter', 'Subclass name': 'subclassFilter' };
     Object.keys(map).forEach(key => {
         const select = document.getElementById(map[key]);
-        const prev = select.value;
+        const currentVal = select.value;
         const vals = [...new Set(data.map(r => r[key]))].filter(Boolean).sort();
         select.innerHTML = `<option value="">All ${key.split(' ')[0]}s</option>`;
         vals.forEach(v => {
             const opt = new Option(v, v);
-            if (v === prev) opt.selected = true;
+            if (v === currentVal) opt.selected = true;
             select.add(opt);
         });
     });
@@ -155,6 +163,7 @@ function renderSummary(data) {
     container.innerHTML = Object.keys(groups).map(name => {
         const g = groups[name];
         const diff = g.ty - g.ly;
+        const perc = getPerc(g.ty, g.ly);
         const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
         return `
             <div class="summary-card">
@@ -163,6 +172,7 @@ function renderSummary(data) {
                     <div class="stat-box"><label>TY</label><span class="stat-val">${g.ty.toLocaleString()}</span></div>
                     <div class="stat-box"><label>LY</label><span class="stat-val">${g.ly.toLocaleString()}</span></div>
                     <div class="stat-box"><label>Diff</label><span class="stat-val ${color}">${diff.toLocaleString()}</span></div>
+                    <div class="stat-box"><label>Gr%</label><span class="stat-val ${color}">${perc}</span></div>
                 </div>
             </div>`;
     }).join('');
@@ -172,7 +182,6 @@ function renderDetails(data) {
     const body = document.getElementById('detailBody');
     const footer = document.getElementById('detailFooter');
     
-    // Aggregate by Item Code
     const items = data.reduce((acc, r) => {
         const code = r['Item Code'] || 'N/A';
         if (!acc[code]) acc[code] = { loc: r['Location Name'], desc: r['Item Description'], ty: 0, ly: 0 };
@@ -185,20 +194,27 @@ function renderDetails(data) {
     body.innerHTML = Object.keys(items).map(code => {
         const i = items[code];
         const diff = i.ty - i.ly;
+        const perc = getPerc(i.ty, i.ly);
+        const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
         tTY += i.ty; tLY += i.ly;
         return `<tr>
             <td>${i.loc}</td><td><b>${code}</b></td><td>${i.desc}</td>
             <td style="text-align:right">${i.ty.toLocaleString()}</td>
             <td style="text-align:right">${i.ly.toLocaleString()}</td>
-            <td style="text-align:right" class="${diff>=0?'diff-pos':'diff-neg'}">${diff.toLocaleString()}</td>
+            <td style="text-align:right" class="${color}">${diff.toLocaleString()}</td>
+            <td style="text-align:center" class="${color}">${perc}</td>
         </tr>`;
     }).join('');
 
+    const tDiff = tTY - tLY;
+    const tPerc = getPerc(tTY, tLY);
+    const tColor = tDiff >= 0 ? 'diff-pos' : 'diff-neg';
     footer.innerHTML = `<tr>
-        <td colspan="3" style="text-align:right">TOTALS:</td>
+        <td colspan="3" style="text-align:right">GRAND TOTAL:</td>
         <td style="text-align:right">${tTY.toLocaleString()}</td>
         <td style="text-align:right">${tLY.toLocaleString()}</td>
-        <td style="text-align:right">${(tTY-tLY).toLocaleString()}</td>
+        <td style="text-align:right" class="${tColor}">${tDiff.toLocaleString()}</td>
+        <td style="text-align:center" class="${tColor}">${tPerc}</td>
     </tr>`;
 }
 
