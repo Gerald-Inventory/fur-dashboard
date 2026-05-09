@@ -23,13 +23,14 @@
         .diff-pos { color: var(--success); }
         .diff-neg { color: var(--danger); }
 
-        /* Detail View (Horizontal Table) */
+        /* Detail View Aggregation Table */
         .detail-container { overflow-x: auto; display: none; margin-top: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 600px; }
-        th { background: #334155; color: white; padding: 8px; text-align: left; position: sticky; left: 0; }
-        td { padding: 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 700px; background: white; }
+        th { background: #334155; color: white; padding: 10px; text-align: left; position: sticky; top: 0; }
+        td { padding: 10px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+        tr:nth-child(even) { background: #f8fafc; }
 
-        .btn-view { width: 100%; background: var(--primary); color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .btn-view { width: 100%; background: var(--primary); color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -56,9 +57,9 @@
 <!-- Summary View -->
 <div id="summaryView"></div>
 
-<!-- Detail View (Horizontal) -->
+<!-- Detail View (Aggregated) -->
 <div id="detailView" class="detail-container">
-    <div class="card">
+    <div class="card" style="padding:0; overflow:hidden;">
         <table id="detailTable">
             <thead>
                 <tr>
@@ -121,7 +122,6 @@ function updateUI() {
 
 function renderSummary(data) {
     const container = document.getElementById('summaryView');
-    // Group by Range Name
     const groups = data.reduce((acc, r) => {
         const name = r['Range Name'] || 'Unknown';
         if (!acc[name]) acc[name] = { ty: 0, ly: 0 };
@@ -152,17 +152,37 @@ function renderSummary(data) {
 
 function renderDetails(data) {
     const body = document.getElementById('detailBody');
-    body.innerHTML = data.slice(0, 100).map(r => {
-        const ty = Math.round(parseFloat(r['1.TY Net Sales']) || 0);
-        const ly = Math.round(parseFloat(r['2.LY Net Sales']) || 0);
-        const diff = ty - ly;
-        const grow = ly !== 0 ? Math.round((diff / ly) * 100) : 0;
+    
+    // AGGREGATION LOGIC: Group by Item Code
+    const itemAggregation = data.reduce((acc, r) => {
+        const code = r['Item Code'];
+        if (!acc[code]) {
+            acc[code] = { 
+                loc: r['Location Name'], 
+                desc: r['Item Description'], 
+                ty: 0, ly: 0 
+            };
+        }
+        acc[code].ty += Math.round(parseFloat(r['1.TY Net Sales']) || 0);
+        acc[code].ly += Math.round(parseFloat(r['2.LY Net Sales']) || 0);
+        return acc;
+    }, {});
+
+    body.innerHTML = Object.keys(itemAggregation).map(code => {
+        const item = itemAggregation[code];
+        const diff = item.ty - item.ly;
+        const grow = item.ly !== 0 ? Math.round((diff / item.ly) * 100) : 0;
         const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
+        
         return `
             <tr>
-                <td>${r['Location Name']}</td><td>${r['Item Code']}</td><td>${r['Item Description']}</td>
-                <td>${ty.toLocaleString()}</td><td>${ly.toLocaleString()}</td>
-                <td class="${color}">${diff.toLocaleString()}</td><td class="${color}">${grow}%</td>
+                <td>${item.loc}</td>
+                <td><b>${code}</b></td>
+                <td>${item.desc}</td>
+                <td>${item.ty.toLocaleString()}</td>
+                <td>${item.ly.toLocaleString()}</td>
+                <td class="${color}">${diff.toLocaleString()}</td>
+                <td class="${color}">${grow}%</td>
             </tr>
         `;
     }).join('');
