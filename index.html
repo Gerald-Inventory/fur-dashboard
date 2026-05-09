@@ -3,39 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retail Performance Dashboard</title>
+    <title>Retail Performance Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.6.2/fuse.min.js"></script>
     <style>
-        :root { --primary: #1e40af; --success: #15803d; --danger: #b91c1c; --bg: #f8fafc; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 13px; }
+        :root { --primary: #1e40af; --success: #15803d; --danger: #b91c1c; --bg: #f1f5f9; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 13px; }
         .card { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; }
         
-        label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; }
-        select, input { width: 100%; padding: 10px; margin: 4px 0 12px 0; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
-        .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-
-        .summary-header { background: #e2e8f0; padding: 8px; font-weight: bold; border-radius: 4px; margin-bottom: 8px; }
-        .data-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px; text-align: center; margin-bottom: 10px; }
-        .data-box { background: #fff; border: 1px solid #e2e8f0; padding: 6px 2px; border-radius: 4px; }
-        .val { display: block; font-weight: bold; font-size: 13px; }
-        .diff-pos { color: var(--success); font-weight: bold; }
-        .diff-neg { color: var(--danger); font-weight: bold; }
+        label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px; }
+        select, input { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; background-color: #fff; }
+        
+        .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .summary-header { background: #334155; color: white; padding: 10px; font-weight: bold; border-radius: 6px 6px 0 0; }
+        
+        .data-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 2px; text-align: center; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 6px 6px; overflow: hidden; }
+        .data-box { background: #fff; padding: 10px 2px; }
+        .val { display: block; font-weight: bold; font-size: 14px; margin-top: 4px; }
+        
+        .diff-pos { color: var(--success); }
+        .diff-neg { color: var(--danger); }
 
         .detail-container { overflow-x: auto; display: none; margin-top: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 750px; background: white; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 800px; background: white; }
         th { background: #334155; color: white; padding: 12px 8px; text-align: left; }
-        td { padding: 12px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
-        
-        tfoot tr { background: #f1f5f9; font-weight: bold; border-top: 2px solid #334155; }
-        .btn-view { width: 100%; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        td { padding: 10px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+        tfoot { background: #f8fafc; font-weight: bold; border-top: 2px solid #334155; }
+
+        .btn-view { width: 100%; background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <label>Search Range</label>
-    <input type="text" id="rangeSearch" placeholder="Type range name...">
+    <label>Search Range Name</label>
+    <input type="text" id="rangeSearch" placeholder="Start typing range...">
     
     <label>Location</label>
     <select id="locFilter"><option value="">All Locations</option></select>
@@ -73,64 +75,93 @@
 </div>
 
 <script>
-let rawData = [];
+let fullData = [];
 let isDetailMode = false;
 
-// Helper to clean numeric values from CSV
-const parseVal = (v) => Math.round(parseFloat(String(v).replace(/[^0-9.-]+/g,"")) || 0);
+// Strict column matching
+const COL_TY = "1.TY Net Sales";
+const COL_LY = "2.LY Net Sales";
+
+const cleanNum = (v) => Math.round(parseFloat(String(v).replace(/[^0-9.-]+/g,"")) || 0);
 
 Papa.parse("FURSale.csv", {
     download: true, header: true, skipEmptyLines: true,
     complete: function(results) {
-        rawData = results.data;
-        initFilters();
-        updateUI();
+        fullData = results.data;
+        updateUI(); // Initial load
     }
 });
 
-function initFilters() {
-    const map = { 'Location Name': 'locFilter', 'Month': 'monthFilter', 'Department Name': 'deptFilter', 'Class Name': 'classFilter', 'Subclass name': 'subclassFilter' };
-    Object.keys(map).forEach(key => {
-        const select = document.getElementById(map[key]);
-        const vals = [...new Set(rawData.map(r => r[key]))].filter(Boolean).sort();
-        vals.forEach(v => select.add(new Option(v, v)));
-    });
-}
-
 function updateUI() {
+    const searchVal = document.getElementById('rangeSearch').value.toLowerCase();
     const filters = {
-        search: document.getElementById('rangeSearch').value.toLowerCase(),
-        loc: document.getElementById('locFilter').value,
-        month: document.getElementById('monthFilter').value,
-        dept: document.getElementById('deptFilter').value,
-        cls: document.getElementById('classFilter').value,
-        sub: document.getElementById('subclassFilter').value
+        'Location Name': document.getElementById('locFilter').value,
+        'Month': document.getElementById('monthFilter').value,
+        'Department Name': document.getElementById('deptFilter').value,
+        'Class Name': document.getElementById('classFilter').value,
+        'Subclass name': document.getElementById('subclassFilter').value
     };
 
-    let filtered = rawData.filter(r => {
-        return (!filters.loc || r['Location Name'] == filters.loc) &&
-               (!filters.month || r['Month'] == filters.month) &&
-               (!filters.dept || r['Department Name'] == filters.dept) &&
-               (!filters.cls || r['Class Name'] == filters.cls) &&
-               (!filters.sub || r['Subclass name'] == filters.sub);
+    // 1. Filter the data based on current inputs
+    let currentData = fullData.filter(r => {
+        return (!filters['Location Name'] || r['Location Name'] === filters['Location Name']) &&
+               (!filters['Month'] || r['Month'] === filters['Month']) &&
+               (!filters['Department Name'] || r['Department Name'] === filters['Department Name']) &&
+               (!filters['Class Name'] || r['Class Name'] === filters['Class Name']) &&
+               (!filters['Subclass name'] || r['Subclass name'] === filters['Subclass name']);
     });
 
-    if (filters.search) {
-        const fuse = new Fuse(filtered, { keys: ['Range Name'], threshold: 0.3 });
-        filtered = fuse.search(filters.search).map(res => res.item);
+    if (searchVal) {
+        const fuse = new Fuse(currentData, { keys: ['Range Name'], threshold: 0.2 });
+        currentData = fuse.search(searchVal).map(res => res.item);
     }
 
-    renderSummary(filtered);
-    renderDetails(filtered);
+    // 2. Update all dropdowns to show ONLY available values based on the NEW filtered data
+    updateDropdowns(currentData, filters);
+
+    // 3. Render Views
+    renderSummary(currentData);
+    renderDetails(currentData);
+}
+
+function updateDropdowns(data, activeFilters) {
+    const fields = {
+        'Location Name': 'locFilter',
+        'Month': 'monthFilter',
+        'Department Name': 'deptFilter',
+        'Class Name': 'classFilter',
+        'Subclass name': 'subclassFilter'
+    };
+
+    Object.keys(fields).forEach(key => {
+        const select = document.getElementById(fields[key]);
+        const currentVal = activeFilters[key];
+        
+        // Get unique values from the filtered dataset
+        const uniqueVals = [...new Set(data.map(r => r[key]))].filter(Boolean).sort();
+        
+        // Clear and rebuild options
+        select.innerHTML = `<option value="">All ${key.replace(' Name', '')}s</option>`;
+        uniqueVals.forEach(v => {
+            const opt = new Option(v, v);
+            if (v === currentVal) opt.selected = true;
+            select.add(opt);
+        });
+    });
 }
 
 function renderSummary(data) {
     const container = document.getElementById('summaryView');
+    if (data.length === 0) {
+        container.innerHTML = `<div class="card" style="text-align:center">No data found for this search.</div>`;
+        return;
+    }
+
     const groups = data.reduce((acc, r) => {
-        const name = r['Range Name'] || 'Unknown';
+        const name = r['Range Name'] || 'Other';
         if (!acc[name]) acc[name] = { ty: 0, ly: 0 };
-        acc[name].ty += parseVal(r['1.TY Net Sales']);
-        acc[name].ly += parseVal(r['2.LY Net Sales']);
+        acc[name].ty += cleanNum(r[COL_TY]);
+        acc[name].ly += cleanNum(r[COL_LY]);
         return acc;
     }, {});
 
@@ -139,15 +170,16 @@ function renderSummary(data) {
         const diff = g.ty - g.ly;
         const grow = g.ly !== 0 ? Math.round((diff / g.ly) * 100) : 0;
         const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
-        return `<div class="card">
-            <div class="summary-header">${name}</div>
-            <div class="data-row">
-                <div class="data-box"><label>TY</label><span class="val">${g.ty.toLocaleString()}</span></div>
-                <div class="data-box"><label>LY</label><span class="val">${g.ly.toLocaleString()}</span></div>
-                <div class="data-box"><label>DIFF</label><span class="val ${color}">${diff.toLocaleString()}</span></div>
-                <div class="data-box"><label>GR%</label><span class="val ${color}">${grow}%</span></div>
-            </div>
-        </div>`;
+        return `
+            <div class="card" style="padding:0">
+                <div class="summary-header">${name}</div>
+                <div class="data-row">
+                    <div class="data-box"><label>TY Sales</label><span class="val">${g.ty.toLocaleString()}</span></div>
+                    <div class="data-box"><label>LY Sales</label><span class="val">${g.ly.toLocaleString()}</span></div>
+                    <div class="data-box"><label>Diff</label><span class="val ${color}">${diff.toLocaleString()}</span></div>
+                    <div class="data-box"><label>Growth</label><span class="val ${color}">${grow}%</span></div>
+                </div>
+            </div>`;
     }).join('');
 }
 
@@ -155,27 +187,23 @@ function renderDetails(data) {
     const body = document.getElementById('detailBody');
     const footer = document.getElementById('detailFooter');
     
-    // Aggregation by Item Code
     const items = data.reduce((acc, r) => {
         const code = r['Item Code'] || 'N/A';
         if (!acc[code]) {
             acc[code] = { loc: r['Location Name'], desc: r['Item Description'], ty: 0, ly: 0 };
         }
-        acc[code].ty += parseVal(r['1.TY Net Sales']);
-        acc[code].ly += parseVal(r['2.LY Net Sales']);
+        acc[code].ty += cleanNum(r[COL_TY]);
+        acc[code].ly += cleanNum(r[COL_LY]);
         return acc;
     }, {});
 
     let tTY = 0, tLY = 0;
-
     body.innerHTML = Object.keys(items).map(code => {
         const i = items[code];
         const diff = i.ty - i.ly;
         const grow = i.ly !== 0 ? Math.round((diff / i.ly) * 100) : 0;
         const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
-        
         tTY += i.ty; tLY += i.ly;
-
         return `<tr>
             <td>${i.loc}</td><td><b>${code}</b></td><td>${i.desc}</td>
             <td style="text-align:right">${i.ty.toLocaleString()}</td>
@@ -187,14 +215,12 @@ function renderDetails(data) {
 
     const tDiff = tTY - tLY;
     const tGrow = tLY !== 0 ? Math.round((tDiff / tLY) * 100) : 0;
-    const tColor = tDiff >= 0 ? 'diff-pos' : 'diff-neg';
-
     footer.innerHTML = `<tr>
-        <td colspan="3" style="text-align:right"><b>GRAND TOTAL:</b></td>
-        <td style="text-align:right"><b>${tTY.toLocaleString()}</b></td>
-        <td style="text-align:right"><b>${tLY.toLocaleString()}</b></td>
-        <td style="text-align:right" class="${tColor}"><b>${tDiff.toLocaleString()}</b></td>
-        <td style="text-align:center" class="${tColor}"><b>${tGrow}%</b></td>
+        <td colspan="3" style="text-align:right"><b>TOTAL:</b></td>
+        <td style="text-align:right">${tTY.toLocaleString()}</td>
+        <td style="text-align:right">${tLY.toLocaleString()}</td>
+        <td style="text-align:right" class="${tDiff>=0?'diff-pos':'diff-neg'}">${tDiff.toLocaleString()}</td>
+        <td style="text-align:center" class="${tDiff>=0?'diff-pos':'diff-neg'}">${tGrow}%</td>
     </tr>`;
 }
 
