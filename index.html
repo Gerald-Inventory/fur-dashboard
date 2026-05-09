@@ -3,169 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retail Performance Dashboard</title>
-    <!-- Libraries -->
+    <title>Retail Sales Tracker</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.6.2/fuse.min.js"></script>
     <style>
-        :root {
-            --primary: #2563eb;
-            --success: #059669;
-            --danger: #dc2626;
-            --bg: #f8fafc;
-        }
-        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); margin: 0; padding: 10px; }
-        .container { max-width: 600px; margin: auto; }
-        .card { background: white; padding: 15px; border-radius: 12px; shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        :root { --primary: #2563eb; --success: #059669; --danger: #dc2626; --bg: #f1f5f9; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); margin: 0; padding: 10px; color: #1e293b; }
+        .container { max-width: 500px; margin: auto; }
+        .card { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; }
         
-        /* Mobile-Friendly Inputs */
+        /* Form Elements */
+        label { font-size: 0.75rem; font-weight: bold; color: #64748b; margin-left: 5px; }
         select, input { 
-            width: 100%; padding: 12px; margin: 8px 0; 
-            border: 1px solid #ddd; border-radius: 8px; font-size: 16px; /* Prevents iOS zoom */
+            width: 100%; padding: 10px; margin: 4px 0 12px 0; 
+            border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box;
         }
         
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .result-item { 
-            border-bottom: 1px solid #eee; padding: 15px 0; 
-        }
-        .val { font-weight: bold; font-size: 1.1em; }
+        .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        
+        /* Result Item Styling */
+        .result-card { border-left: 4px solid var(--primary); margin-bottom: 10px; padding: 10px; background: #fff; border-radius: 4px; font-size: 0.9rem; }
+        .row-main { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
+        .row-sub { font-size: 0.8rem; color: #64748b; margin-bottom: 8px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 5px; }
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; text-align: center; }
+        .data-box { background: #f8fafc; padding: 5px; border-radius: 4px; }
+        .val { display: block; font-weight: 700; font-size: 0.95rem; }
         .diff-pos { color: var(--success); }
         .diff-neg { color: var(--danger); }
-        .label { font-size: 0.85em; color: #64748b; text-transform: uppercase; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2 style="text-align:center">Sales Performance</h2>
-    
-    <!-- Filters -->
     <div class="card">
-        <input type="text" id="rangeSearch" placeholder="Search Range Name...">
-        <div class="grid">
-            <select id="monthFilter"><option value="">All Months</option></select>
-            <select id="deptFilter"><option value="">All Depts</option></select>
+        <label>SEARCH RANGE</label>
+        <input type="text" id="rangeSearch" placeholder="Type Range Name...">
+        
+        <label>LOCATION</label>
+        <select id="locFilter"><option value="">All Locations</option></select>
+
+        <div class="filter-grid">
+            <div><label>MONTH</label><select id="monthFilter"><option value="">All</option></select></div>
+            <div><label>DEPT</label><select id="deptFilter"><option value="">All</option></select></div>
         </div>
-        <div class="grid">
-            <select id="classFilter"><option value="">All Classes</option></select>
-            <select id="subclassFilter"><option value="">All Subclasses</option></select>
+        <div class="filter-grid">
+            <div><label>CLASS</label><select id="classFilter"><option value="">All</option></select></div>
+            <div><label>SUBCLASS</label><select id="subclassFilter"><option value="">All</option></select></div>
         </div>
     </div>
 
-    <!-- Results -->
-    <div id="results" class="card">
-        <p style="text-align:center; color:#666;">Loading data...</p>
+    <div id="results">
+        <p style="text-align:center; color:#94a3b8;">Reading FURSale.csv...</p>
     </div>
 </div>
 
 <script>
 let rawData = [];
-const resultsDiv = document.getElementById('results');
 
-// 1. Load CSV
 Papa.parse("FURSale.csv", {
     download: true,
     header: true,
-    dynamicTyping: true,
+    skipEmptyLines: true,
     complete: function(results) {
-        rawData = results.data.filter(row => row['Range Name']);
-        populateFilters();
-        renderResults(rawData);
+        rawData = results.data;
+        initFilters();
+        updateDisplay();
     }
 });
 
-function populateFilters() {
-    const filters = {
+function initFilters() {
+    const map = {
+        'Location Name': 'locFilter',
         'Month': 'monthFilter',
         'Department Name': 'deptFilter',
         'Class Name': 'classFilter',
         'Subclass name': 'subclassFilter'
     };
 
-    Object.keys(filters).forEach(key => {
-        const uniqueVals = [...new Set(rawData.map(item => item[key]))].sort();
-        const select = document.getElementById(filters[key]);
-        uniqueVals.forEach(val => {
-            if(val) select.add(new Option(val, val));
-        });
+    Object.keys(map).forEach(key => {
+        const select = document.getElementById(map[key]);
+        const vals = [...new Set(rawData.map(r => r[key]))].filter(Boolean).sort();
+        vals.forEach(v => select.add(new Option(v, v)));
     });
 }
 
-function renderResults(data) {
+function updateDisplay() {
+    const search = document.getElementById('rangeSearch').value.toLowerCase();
+    const loc = document.getElementById('locFilter').value;
+    const month = document.getElementById('monthFilter').value;
+    const dept = document.getElementById('deptFilter').value;
+    const cls = document.getElementById('classFilter').value;
+    const sub = document.getElementById('subclassFilter').value;
+
+    let filtered = rawData.filter(r => {
+        return (!loc || r['Location Name'] == loc) &&
+               (!month || r['Month'] == month) &&
+               (!dept || r['Department Name'] == dept) &&
+               (!cls || r['Class Name'] == cls) &&
+               (!sub || r['Subclass name'] == sub);
+    });
+
+    if (search) {
+        const fuse = new Fuse(filtered, { keys: ['Range Name'], threshold: 0.3 });
+        filtered = fuse.search(search).map(res => res.item);
+    }
+
+    renderTable(filtered);
+}
+
+function renderTable(data) {
+    const container = document.getElementById('results');
     if (data.length === 0) {
-        resultsDiv.innerHTML = "No matches found.";
+        container.innerHTML = '<div class="card" style="text-align:center">No data matches these filters.</div>';
         return;
     }
 
-    // Grouping by Range Name to show aggregate for filters
-    const grouped = data.reduce((acc, row) => {
-        const name = row['Range Name'];
-        if (!acc[name]) acc[name] = { ty: 0, ly: 0 };
-        acc[name].ty += parseFloat(row['1.TY Net Sales'] || 0);
-        acc[name].ly += parseFloat(row['2.LY Net Sales'] || 0);
-        return acc;
-    }, {});
-
-    resultsDiv.innerHTML = Object.keys(grouped).map(name => {
-        const ty = grouped[name].ty;
-        const ly = grouped[name].ly;
+    container.innerHTML = data.slice(0, 50).map(r => {
+        const ty = Math.round(parseFloat(r['1.TY Net Sales']) || 0);
+        const ly = Math.round(parseFloat(r['2.LY Net Sales']) || 0);
         const diff = ty - ly;
-        const diffPct = ly !== 0 ? ((diff / ly) * 100).toFixed(1) : '0';
-        const colorClass = diff >= 0 ? 'diff-pos' : 'diff-neg';
+        const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
 
         return `
-            <div class="result-item">
-                <div class="label">Range Name</div>
-                <div class="val" style="color:var(--primary)">${name}</div>
-                <div class="grid" style="margin-top:10px">
-                    <div>
-                        <div class="label">TY Sales</div>
-                        <div class="val">${ty.toLocaleString()}</div>
-                    </div>
-                    <div>
-                        <div class="label">LY Sales</div>
-                        <div class="val">${ly.toLocaleString()}</div>
-                    </div>
-                    <div>
-                        <div class="label">Difference</div>
-                        <div class="val ${colorClass}">${diff.toLocaleString()}</div>
-                    </div>
-                    <div>
-                        <div class="label">Growth %</div>
-                        <div class="val ${colorClass}">${diffPct}%</div>
-                    </div>
+            <div class="result-card">
+                <div class="row-main">
+                    <span>${r['Range Name'] || 'N/A'}</span>
+                    <span style="font-size:0.7rem; color:#64748b;">${r['Location Name']}</span>
+                </div>
+                <div class="row-sub">
+                    ${r['Item Code'] || ''} | ${r['Item Description'] || ''}
+                </div>
+                <div class="data-grid">
+                    <div class="data-box"><label>TY</label><span class="val">${ty.toLocaleString()}</span></div>
+                    <div class="data-box"><label>LY</label><span class="val">${ly.toLocaleString()}</span></div>
+                    <div class="data-box"><label>DIFF</label><span class="val ${color}">${diff.toLocaleString()}</span></div>
                 </div>
             </div>
         `;
     }).join('');
 }
 
-// 2. Search & Filter Logic
-function applyFilters() {
-    const searchTerm = document.getElementById('rangeSearch').value.toLowerCase();
-    const month = document.getElementById('monthFilter').value;
-    const dept = document.getElementById('deptFilter').value;
-    const cls = document.getElementById('classFilter').value;
-    const sub = document.getElementById('subclassFilter').value;
-
-    let filtered = rawData.filter(row => {
-        return (!month || row['Month'] == month) &&
-               (!dept || row['Department Name'] == dept) &&
-               (!cls || row['Class Name'] == cls) &&
-               (!sub || row['Subclass name'] == sub);
-    });
-
-    if (searchTerm) {
-        const fuse = new Fuse(filtered, { keys: ['Range Name'], threshold: 0.3 });
-        filtered = fuse.search(searchTerm).map(r => r.item);
-    }
-
-    renderResults(filtered);
-}
-
-// Event Listeners
-document.querySelectorAll('select, input').forEach(el => {
-    el.addEventListener('input', applyFilters);
+// Attach listeners
+document.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('change', updateDisplay);
+    el.addEventListener('input', updateDisplay);
 });
 </script>
 
