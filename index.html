@@ -8,11 +8,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.6.2/fuse.min.js"></script>
     <style>
         :root { --primary: #1e40af; --success: #15803d; --danger: #b91c1c; --bg: #f8fafc; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 14px; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 13px; }
         .card { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; }
         
-        label { font-size: 11px; font-weight: bold; color: #64748b; }
-        select, input { width: 100%; padding: 10px; margin: 4px 0 10px 0; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
+        label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; }
+        select, input { width: 100%; padding: 10px; margin: 4px 0 12px 0; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
         .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
         .summary-header { background: #e2e8f0; padding: 8px; font-weight: bold; border-radius: 4px; margin-bottom: 8px; }
@@ -23,33 +23,30 @@
         .diff-neg { color: var(--danger); font-weight: bold; }
 
         .detail-container { overflow-x: auto; display: none; margin-top: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 700px; background: white; }
-        th { background: #334155; color: white; padding: 10px; text-align: left; position: sticky; top: 0; }
-        td { padding: 10px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 750px; background: white; }
+        th { background: #334155; color: white; padding: 12px 8px; text-align: left; }
+        td { padding: 12px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
         
-        /* Summary Footer Styling */
         tfoot tr { background: #f1f5f9; font-weight: bold; border-top: 2px solid #334155; }
-        tfoot td { padding: 12px 8px; font-size: 12px; }
-
-        .btn-view { width: 100%; background: var(--primary); color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 5px; }
+        .btn-view { width: 100%; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <label>SEARCH RANGE NAME</label>
-    <input type="text" id="rangeSearch" placeholder="Type range...">
+    <label>Search Range</label>
+    <input type="text" id="rangeSearch" placeholder="Type range name...">
     
-    <label>LOCATION NAME</label>
+    <label>Location</label>
     <select id="locFilter"><option value="">All Locations</option></select>
 
     <div class="filter-grid">
-        <div><label>MONTH</label><select id="monthFilter"><option value="">All</option></select></div>
-        <div><label>DEPT</label><select id="deptFilter"><option value="">All</option></select></div>
+        <div><label>Month</label><select id="monthFilter"><option value="">All</option></select></div>
+        <div><label>Dept</label><select id="deptFilter"><option value="">All</option></select></div>
     </div>
     <div class="filter-grid">
-        <div><label>CLASS</label><select id="classFilter"><option value="">All</option></select></div>
-        <div><label>SUBCLASS</label><select id="subclassFilter"><option value="">All</option></select></div>
+        <div><label>Class</label><select id="classFilter"><option value="">All</option></select></div>
+        <div><label>Subclass</label><select id="subclassFilter"><option value="">All</option></select></div>
     </div>
     
     <button class="btn-view" id="toggleBtn">View Item Detail</button>
@@ -62,7 +59,11 @@
         <table>
             <thead>
                 <tr>
-                    <th>Location</th><th>Item Code</th><th>Description</th><th>TY Sale</th><th>LY Sale</th><th>Diff</th><th>Gr%</th>
+                    <th>Location</th><th>Item Code</th><th>Description</th>
+                    <th style="text-align:right">TY Sale</th>
+                    <th style="text-align:right">LY Sale</th>
+                    <th style="text-align:right">Diff</th>
+                    <th style="text-align:center">Gr%</th>
                 </tr>
             </thead>
             <tbody id="detailBody"></tbody>
@@ -74,6 +75,9 @@
 <script>
 let rawData = [];
 let isDetailMode = false;
+
+// Helper to clean numeric values from CSV
+const parseVal = (v) => Math.round(parseFloat(String(v).replace(/[^0-9.-]+/g,"")) || 0);
 
 Papa.parse("FURSale.csv", {
     download: true, header: true, skipEmptyLines: true,
@@ -125,8 +129,8 @@ function renderSummary(data) {
     const groups = data.reduce((acc, r) => {
         const name = r['Range Name'] || 'Unknown';
         if (!acc[name]) acc[name] = { ty: 0, ly: 0 };
-        acc[name].ty += Math.round(parseFloat(r['1.TY Net Sales']) || 0);
-        acc[name].ly += Math.round(parseFloat(r['2.LY Net Sales']) || 0);
+        acc[name].ty += parseVal(r['1.TY Net Sales']);
+        acc[name].ly += parseVal(r['2.LY Net Sales']);
         return acc;
     }, {});
 
@@ -151,49 +155,47 @@ function renderDetails(data) {
     const body = document.getElementById('detailBody');
     const footer = document.getElementById('detailFooter');
     
-    // Aggregate by Item Code
-    const itemAggregation = data.reduce((acc, r) => {
-        const code = r['Item Code'];
+    // Aggregation by Item Code
+    const items = data.reduce((acc, r) => {
+        const code = r['Item Code'] || 'N/A';
         if (!acc[code]) {
             acc[code] = { loc: r['Location Name'], desc: r['Item Description'], ty: 0, ly: 0 };
         }
-        acc[code].ty += Math.round(parseFloat(r['1.TY Net Sales']) || 0);
-        acc[code].ly += Math.round(parseFloat(r['2.LY Net Sales']) || 0);
+        acc[code].ty += parseVal(r['1.TY Net Sales']);
+        acc[code].ly += parseVal(r['2.LY Net Sales']);
         return acc;
     }, {});
 
-    let grandTY = 0, grandLY = 0;
+    let tTY = 0, tLY = 0;
 
-    body.innerHTML = Object.keys(itemAggregation).map(code => {
-        const item = itemAggregation[code];
-        const diff = item.ty - item.ly;
-        const grow = item.ly !== 0 ? Math.round((diff / item.ly) * 100) : 0;
+    body.innerHTML = Object.keys(items).map(code => {
+        const i = items[code];
+        const diff = i.ty - i.ly;
+        const grow = i.ly !== 0 ? Math.round((diff / i.ly) * 100) : 0;
         const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
         
-        grandTY += item.ty;
-        grandLY += item.ly;
+        tTY += i.ty; tLY += i.ly;
 
         return `<tr>
-            <td>${item.loc}</td><td><b>${code}</b></td><td>${item.desc}</td>
-            <td>${item.ty.toLocaleString()}</td><td>${item.ly.toLocaleString()}</td>
-            <td class="${color}">${diff.toLocaleString()}</td><td class="${color}">${grow}%</td>
+            <td>${i.loc}</td><td><b>${code}</b></td><td>${i.desc}</td>
+            <td style="text-align:right">${i.ty.toLocaleString()}</td>
+            <td style="text-align:right">${i.ly.toLocaleString()}</td>
+            <td style="text-align:right" class="${color}">${diff.toLocaleString()}</td>
+            <td style="text-align:center" class="${color}">${grow}%</td>
         </tr>`;
     }).join('');
 
-    // RENDER TOTALS FOOTER
-    const grandDiff = grandTY - grandLY;
-    const grandGrow = grandLY !== 0 ? Math.round((grandDiff / grandLY) * 100) : 0;
-    const grandColor = grandDiff >= 0 ? 'diff-pos' : 'diff-neg';
+    const tDiff = tTY - tLY;
+    const tGrow = tLY !== 0 ? Math.round((tDiff / tLY) * 100) : 0;
+    const tColor = tDiff >= 0 ? 'diff-pos' : 'diff-neg';
 
-    footer.innerHTML = `
-        <tr>
-            <td colspan="3" style="text-align:right">TOTAL AGGREGATED:</td>
-            <td>${grandTY.toLocaleString()}</td>
-            <td>${grandLY.toLocaleString()}</td>
-            <td class="${grandColor}">${grandDiff.toLocaleString()}</td>
-            <td class="${grandColor}">${grandGrow}%</td>
-        </tr>
-    `;
+    footer.innerHTML = `<tr>
+        <td colspan="3" style="text-align:right"><b>GRAND TOTAL:</b></td>
+        <td style="text-align:right"><b>${tTY.toLocaleString()}</b></td>
+        <td style="text-align:right"><b>${tLY.toLocaleString()}</b></td>
+        <td style="text-align:right" class="${tColor}"><b>${tDiff.toLocaleString()}</b></td>
+        <td style="text-align:center" class="${tColor}"><b>${tGrow}%</b></td>
+    </tr>`;
 }
 
 document.getElementById('toggleBtn').addEventListener('click', function() {
