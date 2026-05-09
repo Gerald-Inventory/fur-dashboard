@@ -3,148 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retail Performance Pro</title>
+    <title>Retail Sales Tracker</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.6.2/fuse.min.js"></script>
     <style>
-        :root { --primary: #1e40af; --success: #15803d; --danger: #b91c1c; --bg: #f1f5f9; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 13px; }
+        :root { --primary: #1e40af; --success: #15803d; --danger: #b91c1c; --bg: #f8fafc; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 13px; }
         .card { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; }
-        
         label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px; }
-        select, input { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; background-color: #fff; }
-        
-        .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .summary-header { background: #334155; color: white; padding: 10px; font-weight: bold; border-radius: 6px 6px 0 0; }
-        
-        .data-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 2px; text-align: center; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 6px 6px; overflow: hidden; }
-        .data-box { background: #fff; padding: 10px 2px; }
-        .val { display: block; font-weight: bold; font-size: 14px; margin-top: 4px; }
-        
-        .diff-pos { color: var(--success); }
-        .diff-neg { color: var(--danger); }
-
-        .detail-container { overflow-x: auto; display: none; margin-top: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 800px; background: white; }
-        th { background: #334155; color: white; padding: 12px 8px; text-align: left; }
-        td { padding: 10px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
-        tfoot { background: #f8fafc; font-weight: bold; border-top: 2px solid #334155; }
-
-        .btn-view { width: 100%; background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        select, input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .summary-card { border-left: 5px solid var(--primary); padding: 10px; margin-bottom: 10px; background: white; border-radius: 4px; }
+        .summary-title { font-weight: bold; margin-bottom: 8px; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; text-align: center; }
+        .stat-box { background: #f8fafc; padding: 5px; border-radius: 4px; }
+        .stat-val { display: block; font-weight: bold; font-size: 14px; }
+        .diff-pos { color: var(--success); } .diff-neg { color: var(--danger); }
+        .detail-view { display: none; overflow-x: auto; background: white; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; min-width: 700px; font-size: 11px; }
+        th { background: #334155; color: white; padding: 10px; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
+        tfoot { background: #f1f5f9; font-weight: bold; }
+        .btn { width: 100%; background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <label>Search Range Name</label>
-    <input type="text" id="rangeSearch" placeholder="Start typing range...">
+    <label>Search Range</label>
+    <input type="text" id="rangeSearch" placeholder="Type range name...">
     
     <label>Location</label>
     <select id="locFilter"><option value="">All Locations</option></select>
 
-    <div class="filter-grid">
+    <div class="grid">
         <div><label>Month</label><select id="monthFilter"><option value="">All</option></select></div>
         <div><label>Dept</label><select id="deptFilter"><option value="">All</option></select></div>
     </div>
-    <div class="filter-grid">
+    <div class="grid">
         <div><label>Class</label><select id="classFilter"><option value="">All</option></select></div>
         <div><label>Subclass</label><select id="subclassFilter"><option value="">All</option></select></div>
     </div>
-    
-    <button class="btn-view" id="toggleBtn">View Item Detail</button>
+    <button class="btn" id="toggleBtn">View Item Detail</button>
 </div>
 
 <div id="summaryView"></div>
 
-<div id="detailView" class="detail-container">
-    <div class="card" style="padding:0; overflow:hidden;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Location</th><th>Item Code</th><th>Description</th>
-                    <th style="text-align:right">TY Sale</th>
-                    <th style="text-align:right">LY Sale</th>
-                    <th style="text-align:right">Diff</th>
-                    <th style="text-align:center">Gr%</th>
-                </tr>
-            </thead>
-            <tbody id="detailBody"></tbody>
-            <tfoot id="detailFooter"></tfoot>
-        </table>
-    </div>
+<div id="detailView" class="detail-view">
+    <table>
+        <thead>
+            <tr>
+                <th>Location</th><th>Item Code</th><th>Description</th>
+                <th style="text-align:right">TY Sales</th>
+                <th style="text-align:right">LY Sales</th>
+                <th style="text-align:right">Diff</th>
+            </tr>
+        </thead>
+        <tbody id="detailBody"></tbody>
+        <tfoot id="detailFooter"></tfoot>
+    </table>
 </div>
 
 <script>
 let fullData = [];
-let isDetailMode = false;
+let colTY = "1.TY Net Sales";
+let colLY = "2.LY Net Sales";
+let isDetail = false;
 
-// Strict column matching
-const COL_TY = "1.TY Net Sales";
-const COL_LY = "2.LY Net Sales";
-
-const cleanNum = (v) => Math.round(parseFloat(String(v).replace(/[^0-9.-]+/g,"")) || 0);
+// Function to safely extract numbers even if they have currency symbols or commas
+const toNum = (v) => {
+    if (!v) return 0;
+    const n = parseFloat(String(v).replace(/[^0-9.-]+/g, ""));
+    return isNaN(n) ? 0 : Math.round(n);
+};
 
 Papa.parse("FURSale.csv", {
-    download: true, header: true, skipEmptyLines: true,
+    download: true,
+    header: true,
+    skipEmptyLines: true,
     complete: function(results) {
         fullData = results.data;
-        updateUI(); // Initial load
+        detectColumns(results.meta.fields);
+        updateDashboard();
     }
 });
 
-function updateUI() {
-    const searchVal = document.getElementById('rangeSearch').value.toLowerCase();
-    const filters = {
-        'Location Name': document.getElementById('locFilter').value,
-        'Month': document.getElementById('monthFilter').value,
-        'Department Name': document.getElementById('deptFilter').value,
-        'Class Name': document.getElementById('classFilter').value,
-        'Subclass name': document.getElementById('subclassFilter').value
-    };
-
-    // 1. Filter the data based on current inputs
-    let currentData = fullData.filter(r => {
-        return (!filters['Location Name'] || r['Location Name'] === filters['Location Name']) &&
-               (!filters['Month'] || r['Month'] === filters['Month']) &&
-               (!filters['Department Name'] || r['Department Name'] === filters['Department Name']) &&
-               (!filters['Class Name'] || r['Class Name'] === filters['Class Name']) &&
-               (!filters['Subclass name'] || r['Subclass name'] === filters['Subclass name']);
-    });
-
-    if (searchVal) {
-        const fuse = new Fuse(currentData, { keys: ['Range Name'], threshold: 0.2 });
-        currentData = fuse.search(searchVal).map(res => res.item);
-    }
-
-    // 2. Update all dropdowns to show ONLY available values based on the NEW filtered data
-    updateDropdowns(currentData, filters);
-
-    // 3. Render Views
-    renderSummary(currentData);
-    renderDetails(currentData);
+// AUTO-DETECTION: If the hardcoded name doesn't match, find the closest one
+function detectColumns(fields) {
+    console.log("Detecting columns in:", fields);
+    const tyMatch = fields.find(f => f.includes("1.TY") || (f.includes("TY") && f.includes("Sales")));
+    const lyMatch = fields.find(f => f.includes("2.LY") || (f.includes("LY") && f.includes("Sales")));
+    
+    if (tyMatch) colTY = tyMatch;
+    if (lyMatch) colLY = lyMatch;
+    
+    console.log("Selected TY Column:", colTY);
+    console.log("Selected LY Column:", colLY);
 }
 
-function updateDropdowns(data, activeFilters) {
-    const fields = {
-        'Location Name': 'locFilter',
-        'Month': 'monthFilter',
-        'Department Name': 'deptFilter',
-        'Class Name': 'classFilter',
-        'Subclass name': 'subclassFilter'
-    };
+function updateDashboard() {
+    const search = document.getElementById('rangeSearch').value.toLowerCase();
+    const fLoc = document.getElementById('locFilter').value;
+    const fMonth = document.getElementById('monthFilter').value;
+    const fDept = document.getElementById('deptFilter').value;
+    const fClass = document.getElementById('classFilter').value;
+    const fSub = document.getElementById('subclassFilter').value;
 
-    Object.keys(fields).forEach(key => {
-        const select = document.getElementById(fields[key]);
-        const currentVal = activeFilters[key];
-        
-        // Get unique values from the filtered dataset
-        const uniqueVals = [...new Set(data.map(r => r[key]))].filter(Boolean).sort();
-        
-        // Clear and rebuild options
-        select.innerHTML = `<option value="">All ${key.replace(' Name', '')}s</option>`;
-        uniqueVals.forEach(v => {
+    let filtered = fullData.filter(r => {
+        return (!fLoc || r['Location Name'] === fLoc) &&
+               (!fMonth || r['Month'] === fMonth) &&
+               (!fDept || r['Department Name'] === fDept) &&
+               (!fClass || r['Class Name'] === fClass) &&
+               (!fSub || r['Subclass name'] === fSub);
+    });
+
+    if (search) {
+        const fuse = new Fuse(filtered, { keys: ['Range Name'], threshold: 0.3 });
+        filtered = fuse.search(search).map(res => res.item);
+    }
+
+    updateDropdowns(filtered, { fLoc, fMonth, fDept, fClass, fSub });
+    renderSummary(filtered);
+    renderDetails(filtered);
+}
+
+function updateDropdowns(data, active) {
+    const map = { 'Location Name': 'locFilter', 'Month': 'monthFilter', 'Department Name': 'deptFilter', 'Class Name': 'classFilter', 'Subclass name': 'subclassFilter' };
+    Object.keys(map).forEach(key => {
+        const select = document.getElementById(map[key]);
+        const prev = select.value;
+        const vals = [...new Set(data.map(r => r[key]))].filter(Boolean).sort();
+        select.innerHTML = `<option value="">All ${key.split(' ')[0]}s</option>`;
+        vals.forEach(v => {
             const opt = new Option(v, v);
-            if (v === currentVal) opt.selected = true;
+            if (v === prev) opt.selected = true;
             select.add(opt);
         });
     });
@@ -152,32 +144,25 @@ function updateDropdowns(data, activeFilters) {
 
 function renderSummary(data) {
     const container = document.getElementById('summaryView');
-    if (data.length === 0) {
-        container.innerHTML = `<div class="card" style="text-align:center">No data found for this search.</div>`;
-        return;
-    }
-
     const groups = data.reduce((acc, r) => {
-        const name = r['Range Name'] || 'Other';
+        const name = r['Range Name'] || 'Unknown';
         if (!acc[name]) acc[name] = { ty: 0, ly: 0 };
-        acc[name].ty += cleanNum(r[COL_TY]);
-        acc[name].ly += cleanNum(r[COL_LY]);
+        acc[name].ty += toNum(r[colTY]);
+        acc[name].ly += toNum(r[colLY]);
         return acc;
     }, {});
 
     container.innerHTML = Object.keys(groups).map(name => {
         const g = groups[name];
         const diff = g.ty - g.ly;
-        const grow = g.ly !== 0 ? Math.round((diff / g.ly) * 100) : 0;
         const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
         return `
-            <div class="card" style="padding:0">
-                <div class="summary-header">${name}</div>
-                <div class="data-row">
-                    <div class="data-box"><label>TY Sales</label><span class="val">${g.ty.toLocaleString()}</span></div>
-                    <div class="data-box"><label>LY Sales</label><span class="val">${g.ly.toLocaleString()}</span></div>
-                    <div class="data-box"><label>Diff</label><span class="val ${color}">${diff.toLocaleString()}</span></div>
-                    <div class="data-box"><label>Growth</label><span class="val ${color}">${grow}%</span></div>
+            <div class="summary-card">
+                <div class="summary-title">${name}</div>
+                <div class="stat-grid">
+                    <div class="stat-box"><label>TY</label><span class="stat-val">${g.ty.toLocaleString()}</span></div>
+                    <div class="stat-box"><label>LY</label><span class="stat-val">${g.ly.toLocaleString()}</span></div>
+                    <div class="stat-box"><label>Diff</label><span class="stat-val ${color}">${diff.toLocaleString()}</span></div>
                 </div>
             </div>`;
     }).join('');
@@ -187,13 +172,12 @@ function renderDetails(data) {
     const body = document.getElementById('detailBody');
     const footer = document.getElementById('detailFooter');
     
+    // Aggregate by Item Code
     const items = data.reduce((acc, r) => {
         const code = r['Item Code'] || 'N/A';
-        if (!acc[code]) {
-            acc[code] = { loc: r['Location Name'], desc: r['Item Description'], ty: 0, ly: 0 };
-        }
-        acc[code].ty += cleanNum(r[COL_TY]);
-        acc[code].ly += cleanNum(r[COL_LY]);
+        if (!acc[code]) acc[code] = { loc: r['Location Name'], desc: r['Item Description'], ty: 0, ly: 0 };
+        acc[code].ty += toNum(r[colTY]);
+        acc[code].ly += toNum(r[colLY]);
         return acc;
     }, {});
 
@@ -201,39 +185,31 @@ function renderDetails(data) {
     body.innerHTML = Object.keys(items).map(code => {
         const i = items[code];
         const diff = i.ty - i.ly;
-        const grow = i.ly !== 0 ? Math.round((diff / i.ly) * 100) : 0;
-        const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
         tTY += i.ty; tLY += i.ly;
         return `<tr>
             <td>${i.loc}</td><td><b>${code}</b></td><td>${i.desc}</td>
             <td style="text-align:right">${i.ty.toLocaleString()}</td>
             <td style="text-align:right">${i.ly.toLocaleString()}</td>
-            <td style="text-align:right" class="${color}">${diff.toLocaleString()}</td>
-            <td style="text-align:center" class="${color}">${grow}%</td>
+            <td style="text-align:right" class="${diff>=0?'diff-pos':'diff-neg'}">${diff.toLocaleString()}</td>
         </tr>`;
     }).join('');
 
-    const tDiff = tTY - tLY;
-    const tGrow = tLY !== 0 ? Math.round((tDiff / tLY) * 100) : 0;
     footer.innerHTML = `<tr>
-        <td colspan="3" style="text-align:right"><b>TOTAL:</b></td>
+        <td colspan="3" style="text-align:right">TOTALS:</td>
         <td style="text-align:right">${tTY.toLocaleString()}</td>
         <td style="text-align:right">${tLY.toLocaleString()}</td>
-        <td style="text-align:right" class="${tDiff>=0?'diff-pos':'diff-neg'}">${tDiff.toLocaleString()}</td>
-        <td style="text-align:center" class="${tDiff>=0?'diff-pos':'diff-neg'}">${tGrow}%</td>
+        <td style="text-align:right">${(tTY-tLY).toLocaleString()}</td>
     </tr>`;
 }
 
-document.getElementById('toggleBtn').addEventListener('click', function() {
-    isDetailMode = !isDetailMode;
-    document.getElementById('summaryView').style.display = isDetailMode ? 'none' : 'block';
-    document.getElementById('detailView').style.display = isDetailMode ? 'block' : 'none';
-    this.innerText = isDetailMode ? "Back to Summary" : "View Item Detail";
-});
+document.getElementById('toggleBtn').onclick = () => {
+    isDetail = !isDetail;
+    document.getElementById('summaryView').style.display = isDetail ? 'none' : 'block';
+    document.getElementById('detailView').style.display = isDetail ? 'block' : 'none';
+    document.getElementById('toggleBtn').innerText = isDetail ? "Back to Summary" : "View Item Detail";
+};
 
-document.querySelectorAll('input, select').forEach(el => {
-    el.addEventListener('input', updateUI);
-});
+document.querySelectorAll('input, select').forEach(el => el.oninput = updateDashboard);
 </script>
 </body>
 </html>
