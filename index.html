@@ -14,7 +14,11 @@
         select, input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         
-        /* Summary Styling */
+        /* Top 10 Toggle Styling */
+        .top10-container { display: flex; align-items: center; background: #eff6ff; padding: 10px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #bfdbfe; }
+        .top10-container input { width: auto; margin: 0 10px 0 0; transform: scale(1.5); }
+        .top10-container span { font-weight: bold; color: #1e40af; }
+
         .summary-card { border-left: 5px solid var(--primary); padding: 10px; margin-bottom: 10px; background: white; border-radius: 4px; }
         .summary-title { font-weight: bold; margin-bottom: 8px; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; }
         .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px; text-align: center; }
@@ -22,7 +26,6 @@
         .stat-val { display: block; font-weight: bold; font-size: 12px; }
         .diff-pos { color: var(--success); } .diff-neg { color: var(--danger); }
         
-        /* Detail Table Styling */
         .detail-view { display: none; overflow-x: auto; background: white; border-radius: 8px; }
         table { width: 100%; border-collapse: collapse; min-width: 850px; font-size: 11px; }
         th { background: #334155; color: white; padding: 10px; text-align: left; }
@@ -37,6 +40,11 @@
 <div class="card">
     <label>Search Range</label>
     <input type="text" id="rangeSearch" placeholder="Search Range Name...">
+
+    <div class="top10-container">
+        <input type="checkbox" id="top10Toggle">
+        <span>Show Top 10 Ranges (by TY Sales)</span>
+    </div>
     
     <label>Location</label>
     <select id="locFilter"><option value="">All Locations</option></select>
@@ -82,7 +90,6 @@ const toNum = (v) => {
     return isNaN(n) ? 0 : Math.round(n);
 };
 
-// Calculate Growth % safely
 const getPerc = (ty, ly) => {
     if (ly === 0) return ty > 0 ? "100%" : "0%";
     const p = ((ty - ly) / ly) * 100;
@@ -109,6 +116,8 @@ function detectColumns(fields) {
 
 function updateDashboard() {
     const search = document.getElementById('rangeSearch').value.toLowerCase();
+    const isTop10 = document.getElementById('top10Toggle').checked;
+    
     const filters = {
         'Location Name': document.getElementById('locFilter').value,
         'Month': document.getElementById('monthFilter').value,
@@ -117,6 +126,7 @@ function updateDashboard() {
         'Subclass name': document.getElementById('subclassFilter').value
     };
 
+    // 1. Basic Filtering
     let filtered = fullData.filter(r => {
         return (!filters['Location Name'] || r['Location Name'] === filters['Location Name']) &&
                (!filters['Month'] || r['Month'] === filters['Month']) &&
@@ -125,9 +135,29 @@ function updateDashboard() {
                (!filters['Subclass name'] || r['Subclass name'] === filters['Subclass name']);
     });
 
+    // 2. Range Search
     if (search) {
         const fuse = new Fuse(filtered, { keys: ['Range Name'], threshold: 0.3 });
         filtered = fuse.search(search).map(res => res.item);
+    }
+
+    // 3. Apply Top 10 Logic (If enabled)
+    if (isTop10) {
+        // Group by Range Name to find totals
+        const rangeTotals = filtered.reduce((acc, r) => {
+            const name = r['Range Name'] || 'Unknown';
+            acc[name] = (acc[name] || 0) + toNum(r[colTY]);
+            return acc;
+        }, {});
+
+        // Sort ranges by TY Sales descending and take top 10 names
+        const top10Names = Object.entries(rangeTotals)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(entry => entry[0]);
+
+        // Filter the final list to only include those 10 ranges
+        filtered = filtered.filter(r => top10Names.includes(r['Range Name']));
     }
 
     updateDropdowns(filtered);
@@ -160,7 +190,10 @@ function renderSummary(data) {
         return acc;
     }, {});
 
-    container.innerHTML = Object.keys(groups).map(name => {
+    // Sort summary cards by TY Sales descending
+    const sortedRanges = Object.keys(groups).sort((a, b) => groups[b].ty - groups[a].ty);
+
+    container.innerHTML = sortedRanges.map(name => {
         const g = groups[name];
         const diff = g.ty - g.ly;
         const perc = getPerc(g.ty, g.ly);
@@ -225,6 +258,8 @@ document.getElementById('toggleBtn').onclick = () => {
     document.getElementById('toggleBtn').innerText = isDetail ? "Back to Summary" : "View Item Detail";
 };
 
+// Add listener for the new toggle
+document.getElementById('top10Toggle').onchange = updateDashboard;
 document.querySelectorAll('input, select').forEach(el => el.oninput = updateDashboard);
 </script>
 </body>
