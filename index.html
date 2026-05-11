@@ -7,7 +7,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.6.2/fuse.min.js"></script>
     <style>
-        :root { --primary: #1e40af; --success: #15803d; --danger: #b91c1c; --bg: #f8fafc; }
+        :root { --primary: #1e40af; --success: #15803d; --danger: #b91c1c; --warning: #f59e0b; --bg: #f8fafc; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 13px; }
         .card { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; }
         label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px; }
@@ -28,6 +28,11 @@
         .stat-val { display: block; font-weight: bold; font-size: 12px; }
         .diff-pos { color: var(--success); } .diff-neg { color: var(--danger); }
         
+        /* Badge Styling */
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; margin-left: 5px; vertical-align: middle; }
+        .badge-top { background: #dcfce7; color: var(--success); border: 1px solid #86efac; }
+        .badge-low { background: #fef3c7; color: var(--warning); border: 1px solid #fcd34d; }
+
         .detail-view { display: none; overflow-x: auto; background: white; border-radius: 8px; }
         table { width: 100%; border-collapse: collapse; min-width: 850px; font-size: 11px; }
         th { background: #334155; color: white; padding: 10px; text-align: left; }
@@ -176,11 +181,10 @@ function updateDropdowns(data) {
     });
 }
 
-// Function to handle clicking a range tile
 function showRangeDetail(rangeName) {
     document.getElementById('rangeSearch').value = rangeName;
     isDetail = true;
-    updateDashboard(); // Re-filter based on the new search value
+    updateDashboard();
     toggleViews();
 }
 
@@ -201,7 +205,6 @@ function renderSummary(data) {
         const diff = g.ty - g.ly;
         const perc = getPerc(g.ty, g.ly);
         const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
-        // Added onclick event to the card
         return `
             <div class="summary-card" onclick="showRangeDetail('${name.replace(/'/g, "\\'")}')">
                 <div class="summary-title">${name}</div>
@@ -219,7 +222,7 @@ function renderDetails(data) {
     const body = document.getElementById('detailBody');
     const footer = document.getElementById('detailFooter');
     
-    const items = data.reduce((acc, r) => {
+    const itemsMap = data.reduce((acc, r) => {
         const code = r['Item Code'] || 'N/A';
         if (!acc[code]) acc[code] = { loc: r['Location Name'], desc: r['Item Description'], ty: 0, ly: 0 };
         acc[code].ty += toNum(r[colTY]);
@@ -227,15 +230,26 @@ function renderDetails(data) {
         return acc;
     }, {});
 
+    // Sort items by TY Sales to determine top and low performers
+    const sortedCodes = Object.keys(itemsMap).sort((a, b) => itemsMap[b].ty - itemsMap[a].ty);
+    const topCode = sortedCodes[0];
+    const lowCode = sortedCodes[sortedCodes.length - 1];
+
     let tTY = 0, tLY = 0;
-    body.innerHTML = Object.keys(items).map(code => {
-        const i = items[code];
+    body.innerHTML = sortedCodes.map(code => {
+        const i = itemsMap[code];
         const diff = i.ty - i.ly;
         const perc = getPerc(i.ty, i.ly);
         const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
         tTY += i.ty; tLY += i.ly;
+
+        // Determine badge
+        let badge = '';
+        if (code === topCode && sortedCodes.length > 1) badge = '<span class="badge badge-top">Top</span>';
+        else if (code === lowCode && sortedCodes.length > 1) badge = '<span class="badge badge-low">Low</span>';
+
         return `<tr>
-            <td>${i.loc}</td><td><b>${code}</b></td><td>${i.desc}</td>
+            <td>${i.loc}</td><td><b>${code}</b>${badge}</td><td>${i.desc}</td>
             <td style="text-align:right">${i.ty.toLocaleString()}</td>
             <td style="text-align:right">${i.ly.toLocaleString()}</td>
             <td style="text-align:right" class="${color}">${diff.toLocaleString()}</td>
@@ -263,7 +277,6 @@ function toggleViews() {
 
 document.getElementById('toggleBtn').onclick = () => {
     isDetail = !isDetail;
-    // If going back to summary, clear the specific range search
     if(!isDetail) {
         document.getElementById('rangeSearch').value = "";
         updateDashboard();
@@ -273,11 +286,7 @@ document.getElementById('toggleBtn').onclick = () => {
 
 document.getElementById('top10Toggle').onchange = updateDashboard;
 document.querySelectorAll('input, select').forEach(el => {
-    el.oninput = () => {
-        // If user types in search or changes filter, reset view to summary 
-        // unless they are explicitly in detail mode already
-        updateDashboard();
-    };
+    el.oninput = () => { updateDashboard(); };
 });
 </script>
 </body>
