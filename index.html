@@ -14,13 +14,15 @@
         select, input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         
-        /* Top 10 Toggle Styling */
         .top10-container { display: flex; align-items: center; background: #eff6ff; padding: 10px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #bfdbfe; }
         .top10-container input { width: auto; margin: 0 10px 0 0; transform: scale(1.5); }
         .top10-container span { font-weight: bold; color: #1e40af; }
 
-        .summary-card { border-left: 5px solid var(--primary); padding: 10px; margin-bottom: 10px; background: white; border-radius: 4px; }
-        .summary-title { font-weight: bold; margin-bottom: 8px; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; }
+        .summary-card { border-left: 5px solid var(--primary); padding: 10px; margin-bottom: 10px; background: white; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
+        .summary-card:hover { background: #f1f5f9; }
+        .summary-title { font-weight: bold; margin-bottom: 8px; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; display: flex; justify-content: space-between; }
+        .summary-title::after { content: 'View Items →'; font-size: 10px; color: var(--primary); }
+        
         .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px; text-align: center; }
         .stat-box { background: #f8fafc; padding: 5px; border-radius: 4px; }
         .stat-val { display: block; font-weight: bold; font-size: 12px; }
@@ -126,7 +128,6 @@ function updateDashboard() {
         'Subclass name': document.getElementById('subclassFilter').value
     };
 
-    // 1. Basic Filtering
     let filtered = fullData.filter(r => {
         return (!filters['Location Name'] || r['Location Name'] === filters['Location Name']) &&
                (!filters['Month'] || r['Month'] === filters['Month']) &&
@@ -135,28 +136,23 @@ function updateDashboard() {
                (!filters['Subclass name'] || r['Subclass name'] === filters['Subclass name']);
     });
 
-    // 2. Range Search
     if (search) {
-        const fuse = new Fuse(filtered, { keys: ['Range Name'], threshold: 0.3 });
+        const fuse = new Fuse(filtered, { keys: ['Range Name'], threshold: 0.2 });
         filtered = fuse.search(search).map(res => res.item);
     }
 
-    // 3. Apply Top 10 Logic (If enabled)
     if (isTop10) {
-        // Group by Range Name to find totals
         const rangeTotals = filtered.reduce((acc, r) => {
             const name = r['Range Name'] || 'Unknown';
             acc[name] = (acc[name] || 0) + toNum(r[colTY]);
             return acc;
         }, {});
 
-        // Sort ranges by TY Sales descending and take top 10 names
         const top10Names = Object.entries(rangeTotals)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 10)
             .map(entry => entry[0]);
 
-        // Filter the final list to only include those 10 ranges
         filtered = filtered.filter(r => top10Names.includes(r['Range Name']));
     }
 
@@ -180,6 +176,14 @@ function updateDropdowns(data) {
     });
 }
 
+// Function to handle clicking a range tile
+function showRangeDetail(rangeName) {
+    document.getElementById('rangeSearch').value = rangeName;
+    isDetail = true;
+    updateDashboard(); // Re-filter based on the new search value
+    toggleViews();
+}
+
 function renderSummary(data) {
     const container = document.getElementById('summaryView');
     const groups = data.reduce((acc, r) => {
@@ -190,7 +194,6 @@ function renderSummary(data) {
         return acc;
     }, {});
 
-    // Sort summary cards by TY Sales descending
     const sortedRanges = Object.keys(groups).sort((a, b) => groups[b].ty - groups[a].ty);
 
     container.innerHTML = sortedRanges.map(name => {
@@ -198,8 +201,9 @@ function renderSummary(data) {
         const diff = g.ty - g.ly;
         const perc = getPerc(g.ty, g.ly);
         const color = diff >= 0 ? 'diff-pos' : 'diff-neg';
+        // Added onclick event to the card
         return `
-            <div class="summary-card">
+            <div class="summary-card" onclick="showRangeDetail('${name.replace(/'/g, "\\'")}')">
                 <div class="summary-title">${name}</div>
                 <div class="stat-grid">
                     <div class="stat-box"><label>TY</label><span class="stat-val">${g.ty.toLocaleString()}</span></div>
@@ -251,16 +255,30 @@ function renderDetails(data) {
     </tr>`;
 }
 
-document.getElementById('toggleBtn').onclick = () => {
-    isDetail = !isDetail;
+function toggleViews() {
     document.getElementById('summaryView').style.display = isDetail ? 'none' : 'block';
     document.getElementById('detailView').style.display = isDetail ? 'block' : 'none';
     document.getElementById('toggleBtn').innerText = isDetail ? "Back to Summary" : "View Item Detail";
+}
+
+document.getElementById('toggleBtn').onclick = () => {
+    isDetail = !isDetail;
+    // If going back to summary, clear the specific range search
+    if(!isDetail) {
+        document.getElementById('rangeSearch').value = "";
+        updateDashboard();
+    }
+    toggleViews();
 };
 
-// Add listener for the new toggle
 document.getElementById('top10Toggle').onchange = updateDashboard;
-document.querySelectorAll('input, select').forEach(el => el.oninput = updateDashboard);
+document.querySelectorAll('input, select').forEach(el => {
+    el.oninput = () => {
+        // If user types in search or changes filter, reset view to summary 
+        // unless they are explicitly in detail mode already
+        updateDashboard();
+    };
+});
 </script>
 </body>
 </html>
