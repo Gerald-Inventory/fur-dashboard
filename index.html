@@ -103,6 +103,12 @@ const getPerc = (ty, ly) => {
     return Math.round(p) + "%";
 };
 
+// Helper function to capitalize string safely (Title Case)
+const toTitleCase = (str) => {
+    if (!str) return "";
+    return String(str).toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+};
+
 Papa.parse("FURSale.csv", {
     download: true,
     header: true,
@@ -127,15 +133,19 @@ function updateDashboard() {
     
     const filters = {
         'Location Name': document.getElementById('locFilter').value,
-        'Date': document.getElementById('monthFilter').value, // Adjusted to track the 'Date' column
+        'Date': document.getElementById('monthFilter').value, // Tracks the selected month
         'Department Name': document.getElementById('deptFilter').value,
         'Class Name': document.getElementById('classFilter').value,
         'Subclass name': document.getElementById('subclassFilter').value
     };
 
     let filtered = fullData.filter(r => {
+        // Case-insensitive validation for the Date/Month column string match
+        const rowMonthNormalized = toTitleCase(r['Date']);
+        const isMonthMatch = !filters['Date'] || rowMonthNormalized === filters['Date'];
+
         return (!filters['Location Name'] || r['Location Name'] === filters['Location Name']) &&
-               (!filters['Date'] || r['Date'] === filters['Date']) &&
+               isMonthMatch &&
                (!filters['Department Name'] || r['Department Name'] === filters['Department Name']) &&
                (!filters['Class Name'] || r['Class Name'] === filters['Class Name']) &&
                (!filters['Subclass name'] || r['Subclass name'] === filters['Subclass name']);
@@ -167,14 +177,19 @@ function updateDashboard() {
 }
 
 function updateDropdowns(data) {
-    // Configured Month dropdown to read key 'Date' from the CSV
     const map = { 'Location Name': 'locFilter', 'Date': 'monthFilter', 'Department Name': 'deptFilter', 'Class Name': 'classFilter', 'Subclass name': 'subclassFilter' };
     Object.keys(map).forEach(key => {
         const select = document.getElementById(map[key]);
         const currentVal = select.value;
-        const vals = [...new Set(data.map(r => r[key]))].filter(Boolean).sort();
         
-        // Header title exception for cleaner interface display label
+        let vals;
+        if (key === 'Date') {
+            // Normalize unique month configurations into uniform Title Case format 
+            vals = [...new Set(data.map(r => toTitleCase(r[key])))].filter(Boolean).sort();
+        } else {
+            vals = [...new Set(data.map(r => r[key]))].filter(Boolean).sort();
+        }
+        
         const displayLabel = key === 'Date' ? 'Month' : key.split(' ')[0];
         select.innerHTML = `<option value="">All ${displayLabel}s</option>`;
         
