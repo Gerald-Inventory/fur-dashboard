@@ -12,6 +12,10 @@
         .card { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; }
         label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px; }
         select, input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
+        
+        /* Custom adjustment for multi-select element styling */
+        select[multiple] { height: auto; min-height: 95px; padding: 8px; }
+        
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         
         .top10-container { display: flex; align-items: center; background: #eff6ff; padding: 10px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #bfdbfe; }
@@ -53,8 +57,8 @@
         <span>Show Top 10 Ranges (by TY Sales)</span>
     </div>
     
-    <label>Location</label>
-    <select id="locFilter"><option value="">All Locations</option></select>
+    <label>Locations (Hold Ctrl / Cmd to select multiple)</label>
+    <select id="locFilter" multiple></select>
 
     <div class="grid">
         <div><label>Month</label><select id="monthFilter"><option value="">All</option></select></div>
@@ -131,20 +135,26 @@ function updateDashboard() {
     const search = document.getElementById('rangeSearch').value.toLowerCase();
     const isTop10 = document.getElementById('top10Toggle').checked;
     
+    // Process array elements for multiple selection mapping
+    const locSelect = document.getElementById('locFilter');
+    const selectedLocs = Array.from(locSelect.selectedOptions).map(opt => opt.value).filter(Boolean);
+
     const filters = {
-        'Location Name': document.getElementById('locFilter').value,
-        'Date': document.getElementById('monthFilter').value, // Tracks the selected month
+        'Date': document.getElementById('monthFilter').value, 
         'Department Name': document.getElementById('deptFilter').value,
         'Class Name': document.getElementById('classFilter').value,
         'Subclass name': document.getElementById('subclassFilter').value
     };
 
     let filtered = fullData.filter(r => {
+        // Validation check for locations (Matches if selection array is empty or value exists in array)
+        const isLocMatch = selectedLocs.length === 0 || selectedLocs.includes(r['Location Name']);
+        
         // Case-insensitive validation for the Date/Month column string match
         const rowMonthNormalized = toTitleCase(r['Date']);
         const isMonthMatch = !filters['Date'] || rowMonthNormalized === filters['Date'];
 
-        return (!filters['Location Name'] || r['Location Name'] === filters['Location Name']) &&
+        return isLocMatch &&
                isMonthMatch &&
                (!filters['Department Name'] || r['Department Name'] === filters['Department Name']) &&
                (!filters['Class Name'] || r['Class Name'] === filters['Class Name']) &&
@@ -171,31 +181,63 @@ function updateDashboard() {
         filtered = filtered.filter(r => top10Names.includes(r['Range Name']));
     }
 
-    updateDropdowns(filtered);
+    updateDropdowns();
     renderSummary(filtered);
     renderDetails(filtered);
 }
 
-function updateDropdowns(data) {
-    const map = { 'Location Name': 'locFilter', 'Date': 'monthFilter', 'Department Name': 'deptFilter', 'Class Name': 'classFilter', 'Subclass name': 'subclassFilter' };
+function updateDropdowns() {
+    const map = { 
+        'Location Name': 'locFilter', 
+        'Date': 'monthFilter', 
+        'Department Name': 'deptFilter', 
+        'Class Name': 'classFilter', 
+        'Subclass name': 'subclassFilter' 
+    };
+
+    // Extract all selections cleanly beforehand
+    const currentSelections = {};
     Object.keys(map).forEach(key => {
         const select = document.getElementById(map[key]);
-        const currentVal = select.value;
+        if (select.multiple) {
+            currentSelections[key] = Array.from(select.selectedOptions).map(o => o.value).filter(Boolean);
+        } else {
+            currentSelections[key] = select.value ? [select.value] : [];
+        }
+    });
+
+    Object.keys(map).forEach(key => {
+        const select = document.getElementById(map[key]);
+        
+        // Filter options for each dropdown independently based on the other filters
+        const dynamicDataset = fullData.filter(r => {
+            for (const otherKey of Object.keys(map)) {
+                if (otherKey === key) continue;
+                const activeVals = currentSelections[otherKey];
+                if (activeVals && activeVals.length > 0) {
+                    if (otherKey === 'Date') {
+                        if (!activeVals.includes(toTitleCase(r['Date']))) return false;
+                    } else {
+                        if (!activeVals.includes(r[otherKey])) return false;
+                    }
+                }
+            }
+            return true;
+        });
         
         let vals;
         if (key === 'Date') {
-            // Normalize unique month configurations into uniform Title Case format 
-            vals = [...new Set(data.map(r => toTitleCase(r[key])))].filter(Boolean).sort();
+            vals = [...new Set(dynamicDataset.map(r => toTitleCase(r[key])))].filter(Boolean).sort();
         } else {
-            vals = [...new Set(data.map(r => r[key]))].filter(Boolean).sort();
+            vals = [...new Set(dynamicDataset.map(r => r[key]))].filter(Boolean).sort();
         }
         
         const displayLabel = key === 'Date' ? 'Month' : key.split(' ')[0];
-        select.innerHTML = `<option value="">All ${displayLabel}s</option>`;
+        select.innerHTML = select.multiple ? '' : `<option value="">All ${displayLabel}s</option>`;
         
         vals.forEach(v => {
             const opt = new Option(v, v);
-            if (v === currentVal) opt.selected = true;
+            if (currentSelections[key].includes(v)) opt.selected = true;
             select.add(opt);
         });
     });
